@@ -1,3 +1,0 @@
-{
-     "summary": "LangGraph is an open-source framework for building stateful, multi-actor applications using large language models (LLMs). It introduces a graph-based paradigm where computation flows through nodes and edges, enabling cycles, branching logic, and persistent state across interactions."
-}

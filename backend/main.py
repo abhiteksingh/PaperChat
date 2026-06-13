@@ -1,23 +1,24 @@
 from langgraph.graph import StateGraph,START,END
+import os
 from typing import TypedDict
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from langchain_groq import ChatGroq
-from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-import json
-from typing import Any
-import uuid
 from fastapi import UploadFile, File
-from pypdf import PdfReader
-import io
+from database import init_db , load_messages , save_message , load_chats , delete_chat , create_chat
+from PromptTemplate import PDF_PROMPT
+from schemas import Request_Delete , Request_Format , Request_Messages
+from rag import extract_pdf_text , split_text , get_embeddings , create_vector_store , retrieval_chunks , save_vector_store , load_vector_store , delete_vector_store , web_search_context
+from litellm import token_counter
 
 load_dotenv()
 
 app = FastAPI()
 
+init_db()
+
 primary_llm = ChatGroq(model= "llama-3.3-70b-versatile" , temperature= 0)
-secondary_llm = ChatGroq(model = "llama-3.1-8b-instant" , temperature=0)
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,100 +28,47 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class Request_Format(BaseModel):
-    pdf_id : str
-    question : str
-
 class State(TypedDict):
-    pdf_content : str
-    pdf_id : str
-    summary : Any
+    chat_id : str
+    context : str
     question : str
     answer : str
+    token_count : int
 
-def load_summary(pdf_id):
+embeddings = get_embeddings()
 
-    path = f"summaries/{pdf_id}.json"
-
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def save_summary(summary):
-
-    file_id = str(uuid.uuid4())
-
-    path = f"summaries/{file_id}.json"
-
-    with open(path,"w",encoding="utf-8") as f:
-        json.dump(summary,f,indent=5,ensure_ascii=False)
-
-    return file_id
-
-async def summarize_node(state : State):
-
-    response = await secondary_llm.ainvoke(
-            f"""
-        Summarize this document into valid JSON.
-
-        Return ONLY JSON.
-
-        Format:
-
-        {{
-            "summary": "short summary here"
-        }}
-
-        Document:
-        {state["pdf_content"][:10000]}
-        """
-    )
-
-    summary = json.loads(response.content)
-
-    pdf_id = save_summary(summary)
-
-    return {
-        "pdf_id" : pdf_id
-    }
-    
 async def chat_node(state: State):
+
+    history = load_messages(state["chat_id"])
+
+    history_text = "\n".join(
+         f"{msg['role']} : {msg['content']}"
+         for msg in history[-10:]
+    )
+
+    prompt = PDF_PROMPT.invoke({
+         "context" : state["context"],
+         "question" : state["question"],
+         "history" : history_text 
+    })
+
     
-    response = await primary_llm.ainvoke(
-        f"""
-        You are a restricted document assistant.
+    response = await primary_llm.ainvoke(prompt)
 
-        You know absolutely nothing except the supplied context.
+    prompt_tokens = token_counter(
+         model= "llama-3.3-70b-versatile",
+         text = prompt.to_string()
+    )
 
-        Rules:
-        1. Use only the provided context.
-        2. Never use outside knowledge.
-        3. Never infer missing information.
-        4. Never answer from general knowledge.
-        5. If the answer is not explicitly stated or clearly supported by the context, reply exactly:
-
-        I cannot find that information in the uploaded PDF.
-
-        Context:
-        {state["summary"]}
-
-        Question:
-        {state["question"]}
-        """
+    completion_tokens = token_counter(
+         model= "llama-3.3-70b-versatile",
+         text = response.content
     )
 
     return {
-        "answer" : response.content
+        "answer" : response.content,
+        "token_count" : prompt_tokens + completion_tokens
     }
-
-
-upload_graph = StateGraph(State)
-
-upload_graph.add_node("summarize",summarize_node)
-
-upload_graph.add_edge(START,"summarize")
-upload_graph.add_edge("summarize",END)
-
-upload_workflow = upload_graph.compile()
 
 chat_graph = StateGraph(State)
 
@@ -134,37 +82,98 @@ chat_workflow = chat_graph.compile()
 
 @app.post("/chat")
 async def pdf_chat(req : Request_Format):
+    
+    vector_store = load_vector_store(req.chat_id , embeddings)
 
-    summary = load_summary(req.pdf_id)
+    docs = retrieval_chunks(req.question,vector_store)
 
+    best_score = docs[0][1]
+
+    pdf_context = "\n\n".join(
+        doc.page_content
+        for doc, score in docs
+    )
+
+    context = pdf_context
+
+    sources = ["pdf"]
+
+    if best_score > 1.2:
+        web_context = web_search_context(req.question)
+
+        if web_context:
+            context += "\n\nWeb Information:\n" + web_context
+            sources.append("web")
+
+    question = req.question.strip()
+
+    save_message(
+         req.chat_id, "user" , req.question , None
+    )
+         
     response = await chat_workflow.ainvoke({
-        "summary" : summary,
-        "question" : req.question
+        "context" : context,
+        "question" : question,
+        "chat_id" : req.chat_id
     })
 
+    save_message(
+        req.chat_id,"assistant",response["answer"],response["token_count"]
+    )
     return {
-        "answer" : response["answer"]
+        "answer" : response["answer"],
+        "sources" : sources,
+        "token_count" : response["token_count"]
     }
 
 @app.post("/upload")
 async def upload_chat(files : list[UploadFile] = File(...)):
-        combined_text = ""
 
-        for file in files:
-            pdf_bytes = await file.read()
+        text = await extract_pdf_text(files)
 
-            reader =  PdfReader(io.BytesIO(pdf_bytes))
+        chunks = split_text(text)
 
-            for page in reader.pages:
-                text = page.extract_text()
+        vector_store = create_vector_store(chunks,embeddings)
 
-                if text:
-                    combined_text += text + "\n"
+        title = os.path.splitext(files[0].filename)[0]
 
-        response = await upload_workflow.ainvoke({
-            "pdf_content": combined_text
-        })
+        chat_id = create_chat(title)
 
+        save_vector_store(
+             vector_store,
+             chat_id
+        )
+        
         return {
-            "pdf_id" : response["pdf_id"]
+            "chat_id" : chat_id,
+            "title" : title
         }
+
+@app.post("/messages")
+async def get_messages(req : Request_Messages):
+    messages = load_messages(req.chat_id)
+
+    return{
+         "messages" : messages
+    }
+
+@app.get("/chats")
+def get_chats():
+     
+     chats = load_chats()
+
+     return {
+          "chats" : chats
+     }
+
+
+@app.delete("/delete")
+def chat_delete(req : Request_Delete):
+     
+     delete_chat(req.chat_id)
+
+     delete_vector_store(req.chat_id)
+
+     return {
+          "success" : True
+     }
