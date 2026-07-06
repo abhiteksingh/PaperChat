@@ -1,5 +1,5 @@
 
-function PdfStatus(){
+function PdfStatus({ title }){
     return (
           <div className="mb-6">
             <div
@@ -15,8 +15,10 @@ function PdfStatus(){
                 bg-white/5
               "
             >
-              <span className="h-2 w-2 rounded-full bg-green-400"></span>
-              PDF Ready
+              <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse"></span>
+              <span className="text-zinc-300 text-sm font-medium">
+                Active: {title ? `${title}.pdf` : "PDF Ready"}
+              </span>
             </div>
           </div>
     )

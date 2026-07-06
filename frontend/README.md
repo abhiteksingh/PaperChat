@@ -1,16 +1,31 @@
-# React + Vite
+# 💻 PDF Chatbot Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This directory contains the user interface for the **PDF Chatbot** application. It is built as a single-page React application powered by Vite, styled using Tailwind CSS v4.
 
-Currently, two official plugins are available:
+For the full system architecture, backend documentation, database setup, and detailed API guidelines, please see the main project [README.md](file:///c:/Projects/Pdf-Chatbot/PDF-Chatbot/README.md) at the root level of this repository.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 📁 Directory Structure
 
-## React Compiler
+The components under [src/components/](file:///c:/Projects/Pdf-Chatbot/PDF-Chatbot/frontend/src/components) are structured as follows:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+*   **[App.jsx](file:///c:/Projects/Pdf-Chatbot/PDF-Chatbot/frontend/src/App.jsx)**: The top-level state controller. Holds selections for active chat sessions, lists of chats, and loaded messages.
+*   **[Chat.jsx](file:///c:/Projects/Pdf-Chatbot/PDF-Chatbot/frontend/src/components/Chat.jsx)**: Main workspace. Triggers file upload requests and handles form submissions to the FastAPI server.
+*   **[SideBar.jsx](file:///c:/Projects/Pdf-Chatbot/PDF-Chatbot/frontend/src/components/SideBar.jsx)**: Renders the sidebar showing previous chats list, chat selector buttons, and delete buttons.
+*   **[UploadZone.jsx](file:///c:/Projects/Pdf-Chatbot/PDF-Chatbot/frontend/src/components/UploadZone.jsx)**: Handles drag-and-drop actions for PDF ingestion using `react-dropzone`.
+*   **[MessageList.jsx](file:///c:/Projects/Pdf-Chatbot/PDF-Chatbot/frontend/src/components/MessageList.jsx) & [MessageBubble.jsx](file:///c:/Projects/Pdf-Chatbot/PDF-Chatbot/frontend/src/components/MessageBubble.jsx)**: Renders user prompts and AI responses, showing context badges (e.g., 📄 PDF, 🌐 Web) and token counts.
+*   **[InputArea.jsx](file:///c:/Projects/Pdf-Chatbot/PDF-Chatbot/frontend/src/components/InputArea.jsx)**: Contains the text input area with Enter-to-submit keys listener.
+*   **[PdfStatus.jsx](file:///c:/Projects/Pdf-Chatbot/PDF-Chatbot/frontend/src/components/PdfStatus.jsx)**: Shows the current status of the PDF.
+*   **[ChatHeader.jsx](file:///c:/Projects/Pdf-Chatbot/PDF-Chatbot/frontend/src/components/ChatHeader.jsx)**: Renders the dashboard's header title and subtitle.
 
-## Expanding the ESLint configuration
+## 🚀 Quick Start
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1.  Make sure you have Node.js (v18+) installed.
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+3.  Start the development server:
+    ```bash
+    npm run dev
+    ```
+4.  Open the application in your browser at `http://localhost:5173`.

@@ -1,6 +1,13 @@
+import { useEffect, useRef } from "react";
 import MessageBubble from "./MessageBubble";
 
 function MessageList({messages , chatLoading}){
+    const bottomRef = useRef(null);
+
+    useEffect(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages, chatLoading]);
+
     return (
         <div
             className="
@@ -46,6 +53,7 @@ function MessageList({messages , chatLoading}){
               </div>
             )}
 
+            <div ref={bottomRef} />
           </div>
     )
 }

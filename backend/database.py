@@ -1,201 +1,34 @@
-import sqlite3
-import uuid
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from config import settings
+from models import Base
+import logging
 
-DATABASE_NAME = "chat.db"
+logger = logging.getLogger(__name__)
 
-def get_connection():
-    return sqlite3.connect(DATABASE_NAME)
+# Create the async engine
+engine = create_async_engine(settings.database_url, future=True, echo=False)
 
-def init_db():
+# Session factory for generating async sessions
+async_session = async_sessionmaker(
+    engine,
+    expire_on_commit=False,
+    class_=AsyncSession
+)
 
-    conn = get_connection()
-    
-    cursor = conn.cursor()
+async def init_db() -> None:
+    """Creates the database schema if tables do not exist."""
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database schema initialized successfully.")
+    except Exception as e:
+        logger.critical(f"Failed to initialize database: {e}")
+        raise e
 
-    cursor.execute(""" 
-    CREATE TABLE IF NOT EXISTS chats(
-        id TEXT PRIMARY KEY,
-        title TEXT
-        )
-    """)
-
-    cursor.execute("""
-  
-    CREATE TABLE IF NOT EXISTS messages(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id TEXT,
-            role TEXT,
-            content TEXT,
-            token_count INTEGER
-        )
-  """)
-    
-    conn.commit()
-    conn.close()
-
-def save_message(chat_id,role,content,token_count):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """ INSERT INTO messages(chat_id , role , content,token_count)
-        VALUES (?,?,?,?)
-        """,
-        (
-            chat_id,
-            role,
-            content,
-            token_count
-        )
-    )
-
-    conn.commit()
-    conn.close()
-
-def load_messages(chat_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        SELECT role,content , token_count
-        FROM messages
-        WHERE chat_id = ?
-        ORDER BY id
-       """,
-       (
-           chat_id,
-       )
-    )
-
-    rows = cursor.fetchall()
-    
-    conn.close()
-
-    if not rows:
-        return []
-
-    return [
-        {
-            "role" : row[0],
-            "content" : row[1],
-            "token_count" : row[2]
-        }
-        for row in rows
-    ]
-
-def load_chats():
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-    """
-    SELECT id, title
-    FROM chats
-    """
-    )
-
-    rows = cursor.fetchall()
-
-    conn.close()
-
-    if not rows:
-        return []
-    
-    return [
-    {
-        "chat_id": row[0],
-        "title": row[1]
-    }
-    for row in rows
-]
-
-def delete_chat(chat_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        DELETE FROM chats
-        WHERE id = ?
-        """,
-        (chat_id,)
-    )
-
-    cursor.execute(
-        """
-        DELETE FROM messages
-        WHERE chat_id = ?
-        """,
-        (chat_id,)
-    )
-
-    conn.commit()
-    conn.close()
-
-def create_chat(title):
-    chat_id = str(uuid.uuid4())
-
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        INSERT INTO chats(id, title)
-        VALUES (?, ?)
-        """,
-        (chat_id, title)
-    )
-
-    conn.commit()
-    conn.close()
-
-    return chat_id
-
-# def save_pdf(pdf_content):
-#     conn = get_connection()
-#     cursor = conn.cursor()
-
-#     chat_id = str(uuid.uuid4())
-
-#     cursor.execute(
-#         """
-#         INSERT INTO chats(id,pdf_content)
-#         VALUES (?,?)
-#         """,
-#         (
-#             chat_id,
-#             pdf_content
-#         )
-#     )
-
-#     conn.commit()
-#     conn.close()
-
-#     return chat_id
-
-
-# def load_pdf(chat_id):
-#     conn = get_connection()
-#     cursor = conn.cursor()
-
-#     cursor.execute(
-#         """
-#         SELECT pdf_content
-#         FROM chats
-#         WHERE id = ?
-#         """,
-#         (
-#             chat_id,
-#         )
-#     )
-
-#     rows = cursor.fetchone()
-
-#     conn.close()
-
-#     if rows is None:
-#         return None
-    
-#     return rows[0]
-
+async def get_db():
+    """Dependency provider yielding async database sessions."""
+    async with async_session() as session:
+        try:
+            yield session
+        finally:
+            await session.close()

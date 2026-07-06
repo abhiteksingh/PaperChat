@@ -1,2 +1,29 @@
+# Environments
 .env
-venv
+.env.local
+.env.*.local
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache and temporary files
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Database files
+*.db
+*.sqlite3
+
+# Vector stores and AI indices
+backend/vectorstores/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Personal and refactoring use files
+REFACTORING_SUMMARY.md
