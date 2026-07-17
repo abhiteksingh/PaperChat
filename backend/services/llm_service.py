@@ -3,9 +3,7 @@ from litellm import token_counter
 from typing import Dict, Any
 from config import settings
 from PromptTemplate import PDF_PROMPT
-from interfaces import ILLMService
-
-class GroqLLMService(ILLMService):
+class GroqLLMService:
     def __init__(self):
         self.llm = ChatGroq(
             model=settings.llm_model,

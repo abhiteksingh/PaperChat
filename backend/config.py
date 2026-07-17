@@ -18,7 +18,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./chat.db"
     llm_model: str = "llama-3.3-70b-versatile"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
-    l2_distance_threshold: float = 1.2
+    parent_chunk_size: int = 1200
+    parent_chunk_overlap: int = 200
+    child_chunk_size: int = 300
+    child_chunk_overlap: int = 50
     cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:8000"
 
     model_config = SettingsConfigDict(

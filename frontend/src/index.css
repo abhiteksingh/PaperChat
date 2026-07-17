@@ -1,16 +1,37 @@
 @import "tailwindcss";
 
-/* Chrome, Edge, Safari */
+@theme {
+  --font-display: "Fraunces", serif;
+  --font-body: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+html, body {
+  background-color: #0A0A0A;
+  color: #E8E8E8;
+  font-family: var(--font-body);
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-x: hidden;
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Hide scrollbars */
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
 
-/* Firefox */
 .hide-scrollbar {
   scrollbar-width: none;
-}
-
-/* IE */
-.hide-scrollbar {
   -ms-overflow-style: none;
 }

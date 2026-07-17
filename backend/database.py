@@ -1,4 +1,5 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy import text
 from config import settings
 from models import Base
 import logging
@@ -16,10 +17,37 @@ async_session = async_sessionmaker(
 )
 
 async def init_db() -> None:
-    """Creates the database schema if tables do not exist."""
+    """Creates the database schema if tables do not exist, and handles schema migrations."""
     try:
         async with engine.begin() as conn:
+            # 1. Create tables if they do not exist
             await conn.run_sync(Base.metadata.create_all)
+            
+            # 2. Check if the 'status' column exists in 'chats' table, if not, add it
+            def _check_and_migrate_schema(connection):
+                from sqlalchemy import inspect
+                inspector = inspect(connection)
+                columns = [col["name"] for col in inspector.get_columns("chats")]
+                if "status" not in columns:
+                    logger.info("Database migration: Adding 'status' column to 'chats' table...")
+                    connection.execute(text("ALTER TABLE chats ADD COLUMN status VARCHAR DEFAULT 'completed'"))
+                if "raw_text" not in columns:
+                    logger.info("Database migration: Adding 'raw_text' column to 'chats' table...")
+                    connection.execute(text("ALTER TABLE chats ADD COLUMN raw_text VARCHAR"))
+                if "chunks_json" not in columns:
+                    logger.info("Database migration: Adding 'chunks_json' column to 'chats' table...")
+                    connection.execute(text("ALTER TABLE chats ADD COLUMN chunks_json VARCHAR"))
+                if "workspace_type" not in columns:
+                    logger.info("Database migration: Adding 'workspace_type' column to 'chats' table...")
+                    connection.execute(text("ALTER TABLE chats ADD COLUMN workspace_type VARCHAR DEFAULT 'chat'"))
+                
+                msg_columns = [col["name"] for col in inspector.get_columns("messages")]
+                if "citations_json" not in msg_columns:
+                    logger.info("Database migration: Adding 'citations_json' column to 'messages' table...")
+                    connection.execute(text("ALTER TABLE messages ADD COLUMN citations_json VARCHAR"))
+                    
+            await conn.run_sync(_check_and_migrate_schema)
+            
         logger.info("Database schema initialized successfully.")
     except Exception as e:
         logger.critical(f"Failed to initialize database: {e}")

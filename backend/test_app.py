@@ -6,8 +6,7 @@ from config import settings
 settings.database_url = "sqlite+aiosqlite:///:memory:"
 
 from fastapi.testclient import TestClient
-from main import app, get_vector_service, get_llm_service, get_search_service
-from interfaces import IVectorStoreService, ILLMService, ISearchService
+from main import app, get_vector_service, get_llm_service
 from database import get_db
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from models import Base
@@ -34,40 +33,35 @@ async def override_get_db():
             await session.close()
 
 # Mock services to avoid external network/API dependencies
-class MockVectorService(IVectorStoreService):
+class MockVectorService:
     def __init__(self):
         self.indices = {}
 
-    async def create_index(self, chat_id: str, chunks: List[str]) -> None:
+    async def create_index(self, chat_id: str, chunks: List[dict]) -> None:
         self.indices[chat_id] = chunks
 
     async def similarity_search(self, chat_id: str, query: str, k: int = 3) -> List[Tuple[Document, float]]:
-        return [(Document(page_content="Mock PDF content matching the query."), 1.0)]
+        return [(Document(page_content="Mock PDF content matching the query.", metadata={"page": 1}), 1.0)]
 
     async def delete_index(self, chat_id: str) -> None:
         if chat_id in self.indices:
             del self.indices[chat_id]
 
-class MockLLMService(ILLMService):
+class MockLLMService:
     async def generate_response(self, context: str, question: str, history: str, chat_id: str) -> dict:
         return {
             "answer": f"Mock response. Context was: {context}",
             "token_count": 42
         }
 
-class MockSearchService(ISearchService):
-    async def web_search(self, query: str) -> str:
-        return "Mock web search content."
-
 # Apply Dependency overrides
 app.dependency_overrides[get_db] = override_get_db
 app.dependency_overrides[get_vector_service] = lambda: MockVectorService()
 app.dependency_overrides[get_llm_service] = lambda: MockLLMService()
-app.dependency_overrides[get_search_service] = lambda: MockSearchService()
 
 # Mock PDF text extraction function inside main.py to prevent pypdf parsing crashes on dummy uploads
 async def mock_extract_pdf_text(files):
-    return "Mock PDF text content extracted from file."
+    return [{"page": 1, "text": "Mock PDF text content extracted from file."}]
 
 import main
 main.extract_pdf_text = mock_extract_pdf_text

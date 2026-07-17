@@ -1,50 +1,36 @@
+function UploadZone({ uploading, getInputProps, getRootProps }) {
+  return (
+    <div
+      {...getRootProps()}
+      className="border border-dashed border-[#2A2A2A] hover:border-[#4C8DFF]/40 bg-[#161616] rounded-[20px] p-16 text-center cursor-pointer transition shadow-2xl animate-fade-in select-none"
+    >
+      <input {...getInputProps()} />
 
-function UploadZone({uploading , getInputProps , getRootProps}){
-    return (
-        <div
-          {...getRootProps()}
-          className="
-            border
-            border-white/20
-            bg-white/5
-            backdrop-blur-xl
-            rounded-3xl
-            p-16
-            text-center
-            cursor-pointer
-            transition
-            hover:border-white/40
-            hover:bg-white/10
-            shadow-2xl
-          "
-        >
-          <input {...getInputProps()} />
+      <div className="space-y-4">
+        <div className="text-4xl animate-bounce">📄</div>
 
-          <div className="space-y-3">
-            <div className="text-5xl">📄</div>
-
-            {uploading ? (
-              <>
-                <p className="text-lg font-medium">
-                  Processing PDF...
-                </p>
-                <p className="text-zinc-400">
-                  Summarizing and indexing document
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-xl font-medium">
-                  Drop PDF here
-                </p>
-                <p className="text-zinc-400">
-                  Click or drag your document
-                </p>
-              </>
-            )}
+        {uploading ? (
+          <div className="space-y-1.5">
+            <h3 className="font-display text-lg font-medium text-white">
+              Processing PDF...
+            </h3>
+            <p className="text-xs text-[#9A9A9A] font-body leading-relaxed">
+              Summarizing and indexing document
+            </p>
           </div>
-        </div>
-    )
+        ) : (
+          <div className="space-y-1.5">
+            <h3 className="font-display text-lg font-medium text-white">
+              Drop PDF here
+            </h3>
+            <p className="text-xs text-[#9A9A9A] font-body leading-relaxed">
+              Click or drag your document to start asking
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default UploadZone;

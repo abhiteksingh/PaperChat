@@ -2,7 +2,8 @@ fastapi
 uvicorn
 python-multipart
 pydantic
-pypdf
+pymupdf
+rapidocr-onnxruntime
 langchain
 langchain-community
 langchain-core
@@ -12,11 +13,9 @@ langchain-groq
 langgraph
 litellm
 sentence-transformers
-ddgs
 python-dotenv
 sqlalchemy[asyncio]
 aiosqlite
-asyncpg
 pinecone-client
 langchain-pinecone
 pydantic-settings

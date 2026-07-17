@@ -1,51 +1,31 @@
-function MessageBubble({ role, content, sources = [] , token_count}) {
-    return (
-        <div
-            className={
-                role === "user"
-                    ? "flex flex-col items-end"
-                    : "flex flex-col items-start"
-            }
-        >
-            <div
-                className={
-                    role === "user"
-                        ? `
-                            max-w-[75%]
-                            rounded-3xl
-                            px-5
-                            py-4
-                            bg-white
-                            text-black
-                            shadow-lg
-                        `
-                        : `
-                            max-w-[75%]
-                            rounded-3xl
-                            px-5
-                            py-4
-                            bg-zinc-900
-                            border
-                            border-white/20
-                            shadow-lg
-                        `
-                }
+function MessageBubble({ role, content, sources = [], token_count, citations = [], onSelectCitation }) {
+  return (
+    <div className={`w-full flex flex-col ${role === "user" ? "items-end" : "items-start"} animate-fade-in`}>
+      <div
+        className={`max-w-[85%] px-4 py-3 rounded-2xl text-xs leading-relaxed ${
+          role === "user"
+            ? "bg-[#4C8DFF] text-white shadow-md font-body"
+            : "bg-[#161616] border border-[#2A2A2A] text-[#E8E8E8] font-body"
+        }`}
+      >
+        <div className="whitespace-pre-wrap">
+          {content}
+          
+          {/* Inline Citation Chips */}
+          {role === "assistant" && citations && citations.map((cit, idx) => (
+            <button
+              key={idx}
+              onClick={() => onSelectCitation && onSelectCitation(cit)}
+              className="inline-flex items-center font-mono text-[9px] font-bold bg-[#4C8DFF]/10 border border-[#4C8DFF]/20 text-[#4C8DFF] px-1.5 py-0.5 rounded ml-1.5 hover:shadow-[0_0_10px_rgba(76,141,255,0.4)] active:scale-95 transition-all duration-150 cursor-pointer select-none align-middle"
+              title={`View Citation on Page ${cit.page}`}
             >
-                {content}
-            </div>
-
-            {role === "assistant" && (
-                <div className="mt-1 text-xs text-zinc-400">
-                    {sources?.includes("pdf") && <span>📄 PDF</span>}
-                    {sources?.includes("web") && <span>🌐 Web</span>}
-
-                    {token_count && (
-                    <span>• {token_count.toLocaleString()} tokens</span>
-                    )}
-                </div>
-            )}
+              [p.{cit.page}]
+            </button>
+          ))}
         </div>
-    );
+      </div>
+    </div>
+  )
 }
 
 export default MessageBubble;

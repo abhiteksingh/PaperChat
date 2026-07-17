@@ -5,12 +5,11 @@ import logging
 from typing import List, Tuple
 from langchain_core.documents import Document
 from config import settings
-from interfaces import IVectorStoreService
 from fastapi.concurrency import run_in_threadpool
 
 logger = logging.getLogger(__name__)
 
-class PineconeVectorService(IVectorStoreService):
+class PineconeVectorService:
     def __init__(self):
         # Initialize local Sentence-Transformers embeddings
         self.embeddings = HuggingFaceEmbeddings(model_name=settings.embedding_model)
@@ -44,24 +43,36 @@ class PineconeVectorService(IVectorStoreService):
         except Exception as e:
             logger.error(f"Error checking or creating Pinecone index: {e}. Please ensure your PINECONE_API_KEY is correct.")
 
-    async def create_index(self, chat_id: str, chunks: List[str]) -> None:
+    async def create_index(self, chat_id: str, chunks: List[dict]) -> None:
         def _add():
             vector_store = PineconeVectorStore(
                 index=self.index,
                 embedding=self.embeddings,
                 namespace=chat_id
             )
-            vector_store.add_texts(chunks)
+            texts = [c["child"] for c in chunks]
+            metadatas = [{"parent_content": c["parent"], "page": c["page"]} for c in chunks]
+            vector_store.add_texts(texts, metadatas=metadatas)
         await run_in_threadpool(_add)
 
-    async def similarity_search(self, chat_id: str, query: str, k: int = 3) -> List[Tuple[Document, float]]:
+    async def similarity_search(self, chat_id: str, query: str, k: int = 3, filter: dict = None) -> List[Tuple[Document, float]]:
         def _search():
             vector_store = PineconeVectorStore(
                 index=self.index,
                 embedding=self.embeddings,
                 namespace=chat_id
             )
-            return vector_store.similarity_search_with_score(query, k=k)
+            raw_results = vector_store.similarity_search_with_score(query, k=k, filter=filter)
+            mapped_results = []
+            for doc, score in raw_results:
+                parent_content = doc.metadata.get("parent_content", doc.page_content)
+                page = doc.metadata.get("page", 1)
+                parent_doc = Document(
+                    page_content=parent_content,
+                    metadata={"page": page}
+                )
+                mapped_results.append((parent_doc, score))
+            return mapped_results
         return await run_in_threadpool(_search)
 
     async def delete_index(self, chat_id: str) -> None:
