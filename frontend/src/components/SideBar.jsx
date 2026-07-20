@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import API_BASE from '../api'
 
 function SideBar({ chats, chatId, setChatId, setChats, setMessages, onNavigateHome }) {
   const [includeContext, setIncludeContext] = useState(true);
@@ -6,7 +7,7 @@ function SideBar({ chats, chatId, setChatId, setChats, setMessages, onNavigateHo
   useEffect(() => {
     async function fetchChats() {
       try {
-        const response = await fetch("http://127.0.0.1:8000/chats")
+        const response = await fetch(`${API_BASE}/chats`)
         if (response.ok) {
           const data = await response.json()
           setChats(data.chats)
@@ -16,12 +17,12 @@ function SideBar({ chats, chatId, setChatId, setChats, setMessages, onNavigateHo
       }
     }
     fetchChats()
-  }, [])
+  }, [setChats])
 
   const handleChatFunction = async (selectedId) => {
     try {
       setChatId(selectedId);
-      const response = await fetch("http://127.0.0.1:8000/messages", {
+      const response = await fetch(`${API_BASE}/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -45,7 +46,7 @@ function SideBar({ chats, chatId, setChatId, setChats, setMessages, onNavigateHo
   const handleDelete = async (chatIdToDelete, e) => {
     e.stopPropagation(); // Prevent trigger active state on click
     try {
-      await fetch("http://127.0.0.1:8000/delete", {
+      await fetch(`${API_BASE}/delete`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json"
@@ -93,7 +94,7 @@ function SideBar({ chats, chatId, setChatId, setChats, setMessages, onNavigateHo
               <div className="flex items-start gap-3">
                 <span className="text-lg mt-0.5 select-none">📄</span>
                 <div className="min-w-0 flex-1">
-                  <p className="font-mono text-xs text-white font-medium truncate">{activeChat.title}.pdf</p>
+                  <p className="font-mono text-xs text-white font-medium truncate">{activeChat.title}</p>
                   <p className="text-[10px] text-[#9A9A9A] mt-0.5 font-mono">PDF Document</p>
                 </div>
                 <input 

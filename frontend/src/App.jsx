@@ -1,108 +1,123 @@
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+
 import GeneralWorkspace from "./workspaces/general/GeneralWorkspace"
 import ContractAuditorWorkspace from "./workspaces/contract-auditor/ContractAuditorWorkspace"
 import SpacedLearningWorkspace from "./workspaces/spaced-learning/SpacedLearningWorkspace"
 import SpreadsheetAnalyticsWorkspace from "./workspaces/spreadsheet-analytics/SpreadsheetAnalyticsWorkspace"
 import InterviewSimulatorWorkspace from "./workspaces/interview-simulator/InterviewSimulatorWorkspace"
-
 import LandingPage from "./components/LandingPage"
 import { ROUTES } from "./routes"
-import { useState, useEffect } from 'react'
+import API_BASE from "./api"
 
 function App() {
   const [messages, setMessages] = useState([])
   const [chatId, setChatId] = useState("")
   const [chats, setChats] = useState([])
-  
-  // Custom hash-based router state
-  const [currentRoute, setCurrentRoute] = useState(ROUTES.LANDING.name)
 
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const navigateTo = (route) => navigate(route.path)
+
+  // Reset workspace state on route change to maintain strict workspace isolation
   useEffect(() => {
-    // Parse current hash on mount
-    const handleHashChange = () => {
-      const hash = window.location.hash || "#/"
-      if (hash === ROUTES.CHAT.hash) {
-        setCurrentRoute(ROUTES.CHAT.name)
-      } else if (hash === ROUTES.LEARNING.hash) {
-        setCurrentRoute(ROUTES.LEARNING.name)
-      } else if (hash === ROUTES.AUDITOR.hash) {
-        setCurrentRoute(ROUTES.AUDITOR.name)
-      } else if (hash === ROUTES.ANALYTICS.hash) {
-        setCurrentRoute(ROUTES.ANALYTICS.name)
-      } else if (hash === ROUTES.SIMULATOR.hash) {
-        setCurrentRoute(ROUTES.SIMULATOR.name)
-      } else {
-        setCurrentRoute(ROUTES.LANDING.name)
-      }
-    }
-
-    handleHashChange() // Initial check
-    window.addEventListener("hashchange", handleHashChange)
-    return () => window.removeEventListener("hashchange", handleHashChange)
-  }, [])
-
-  const navigateTo = (route) => {
-    window.location.hash = route.hash
-  }
+    setChatId("")
+    setMessages([])
+    setChats([])
+  }, [location.pathname])
 
   // Poll for updates if any chat is still processing in the background
   useEffect(() => {
-    const hasProcessing = chats.some(c => c.status === "processing");
-    if (!hasProcessing) return;
+    const hasProcessing = chats.some(c => c.status === "processing")
+    if (!hasProcessing) return
+
+    const currentRoute = Object.values(ROUTES).find(r => r.path === location.pathname)
+    const wType = (currentRoute && currentRoute.name !== ROUTES.LANDING.name) ? currentRoute.name : ""
+    const queryParam = wType ? `?workspace_type=${wType}` : ""
 
     const interval = setInterval(async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/chats");
+        const response = await fetch(`${API_BASE}/chats${queryParam}`)
         if (response.ok) {
-          const data = await response.json();
-          setChats(data.chats);
+          const data = await response.json()
+          setChats(data.chats)
         }
       } catch (error) {
-        console.error("Polling error:", error);
+        console.error("Polling error:", error)
       }
-    }, 2000);
+    }, 2000)
 
-    return () => clearInterval(interval);
-  }, [chats]);
+    return () => clearInterval(interval)
+  }, [chats, location.pathname])
 
-  if (currentRoute === ROUTES.LANDING.name) {
-    return <LandingPage onStartChat={(route) => navigateTo(route || ROUTES.CHAT)} />
+  const workspaceProps = {
+    chatId,
+    setChatId,
+    messages,
+    setMessages,
+    chats,
+    setChats,
+    onNavigateHome: () => navigateTo(ROUTES.LANDING),
   }
 
-  const renderWorkspace = () => {
-    const props = {
-      chatId,
-      setChatId,
-      messages,
-      setMessages,
-      chats,
-      setChats,
-      onNavigateHome: () => navigateTo(ROUTES.LANDING),
-      workspaceType: currentRoute
-    };
-
-    switch (currentRoute) {
-      case ROUTES.AUDITOR.name:
-        return <ContractAuditorWorkspace {...props} />;
-      case ROUTES.LEARNING.name:
-        return <SpacedLearningWorkspace {...props} />;
-      case ROUTES.ANALYTICS.name:
-        return <SpreadsheetAnalyticsWorkspace {...props} />;
-      case ROUTES.SIMULATOR.name:
-        return <InterviewSimulatorWorkspace {...props} />;
-      default:
-        return <GeneralWorkspace {...props} />;
-    }
-  };
+  const landing = <LandingPage onStartChat={(route) => navigateTo(route || ROUTES.CHAT)} />
 
   return (
-    <div className="h-screen flex bg-[#0A0A0A] text-[#E8E8E8] font-body overflow-hidden" data-workspace={currentRoute}>
-      
-      {/* Self-contained Active Workspace Panel */}
-      <div className="flex-1 min-w-0 h-screen">
-        {renderWorkspace()}
-      </div>
-
-    </div>
+    <Routes>
+      <Route path={ROUTES.LANDING.path} element={landing} />
+      <Route
+        path={ROUTES.CHAT.path}
+        element={
+          <div className="h-screen flex bg-[#0A0A0A] text-[#E8E8E8] font-body overflow-hidden" data-workspace={ROUTES.CHAT.name}>
+            <div className="flex-1 min-w-0 h-screen">
+              <GeneralWorkspace {...workspaceProps} workspaceType={ROUTES.CHAT.name} />
+            </div>
+          </div>
+        }
+      />
+      <Route
+        path={ROUTES.AUDITOR.path}
+        element={
+          <div className="h-screen flex bg-[#0A0A0A] text-[#E8E8E8] font-body overflow-hidden" data-workspace={ROUTES.AUDITOR.name}>
+            <div className="flex-1 min-w-0 h-screen">
+              <ContractAuditorWorkspace {...workspaceProps} workspaceType={ROUTES.AUDITOR.name} />
+            </div>
+          </div>
+        }
+      />
+      <Route
+        path={ROUTES.LEARNING.path}
+        element={
+          <div className="h-screen flex bg-[#0A0A0A] text-[#E8E8E8] font-body overflow-hidden" data-workspace={ROUTES.LEARNING.name}>
+            <div className="flex-1 min-w-0 h-screen">
+              <SpacedLearningWorkspace {...workspaceProps} workspaceType={ROUTES.LEARNING.name} />
+            </div>
+          </div>
+        }
+      />
+      <Route
+        path={ROUTES.ANALYTICS.path}
+        element={
+          <div className="h-screen flex bg-[#0A0A0A] text-[#E8E8E8] font-body overflow-hidden" data-workspace={ROUTES.ANALYTICS.name}>
+            <div className="flex-1 min-w-0 h-screen">
+              <SpreadsheetAnalyticsWorkspace {...workspaceProps} workspaceType={ROUTES.ANALYTICS.name} />
+            </div>
+          </div>
+        }
+      />
+      <Route
+        path={ROUTES.SIMULATOR.path}
+        element={
+          <div className="h-screen flex bg-[#0A0A0A] text-[#E8E8E8] font-body overflow-hidden" data-workspace={ROUTES.SIMULATOR.name}>
+            <div className="flex-1 min-w-0 h-screen">
+              <InterviewSimulatorWorkspace {...workspaceProps} workspaceType={ROUTES.SIMULATOR.name} />
+            </div>
+          </div>
+        }
+      />
+      <Route path="*" element={landing} />
+    </Routes>
   )
 }
 

@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import API_BASE from '../../api';
 
 function GeneralSideBar({ chats, chatId, setChats, setChatId, setMessages, onNavigateHome, onDrop }) {
-  const [includeContext, setIncludeContext] = useState(true);
 
   useEffect(() => {
     async function fetchChats() {
       try {
-        const response = await fetch("http://127.0.0.1:8000/chats?workspace_type=chat");
+        const response = await fetch(`${API_BASE}/chats?workspace_type=chat`);
         if (response.ok) {
           const data = await response.json();
           setChats(data.chats);
@@ -16,12 +16,12 @@ function GeneralSideBar({ chats, chatId, setChats, setChatId, setMessages, onNav
       }
     }
     fetchChats();
-  }, [chatId, setChats]);
+  }, []);  // only fetch on mount; setChats prop keeps the list in sync after uploads and deletes
 
   const handleChatSelect = async (selectedId) => {
     try {
       setChatId(selectedId);
-      const response = await fetch("http://127.0.0.1:8000/messages", {
+      const response = await fetch(`${API_BASE}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chat_id: selectedId })
@@ -43,7 +43,7 @@ function GeneralSideBar({ chats, chatId, setChats, setChatId, setMessages, onNav
   const handleDelete = async (chatIdToDelete, e) => {
     e.stopPropagation();
     try {
-      await fetch("http://127.0.0.1:8000/delete", {
+      await fetch(`${API_BASE}/delete`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chat_id: chatIdToDelete })
@@ -90,15 +90,9 @@ function GeneralSideBar({ chats, chatId, setChats, setChatId, setMessages, onNav
               <div className="flex items-start gap-3">
                 <span className="text-lg mt-0.5 select-none font-sans">📄</span>
                 <div className="min-w-0 flex-1">
-                  <p className="font-mono text-xs text-white font-medium truncate">{activeChat.title}.pdf</p>
+                  <p className="font-mono text-xs text-white font-medium truncate">{activeChat.title}</p>
                   <p className="text-[10px] text-[#9A9A9A] mt-0.5 font-mono">PDF Document</p>
                 </div>
-                <input 
-                  type="checkbox" 
-                  checked={includeContext} 
-                  onChange={(e) => setIncludeContext(e.target.checked)}
-                  className="mt-1 w-3.5 h-3.5 rounded border-[#2A2A2A] text-[#4C8DFF] cursor-pointer"
-                />
               </div>
             </div>
           ) : (

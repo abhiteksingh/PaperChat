@@ -16,6 +16,10 @@ class SandboxState(TypedDict):
 SANDBOX_PROMPT = """You are the Spreadsheet Analytics & Quantitative Sandbox Agent. Your role is to break down mathematical formulas, financial metrics, and operational datasets from the context.
 Provide variables breakdowns, explain calculations clearly, and list page citations in "[p.X]" format.
 
+Additionally, at the absolute end of your response, you MUST append a structured JSON payload enclosed in <json_payload> and </json_payload> tags.
+This JSON payload must strictly contain fields representing mathematical variables/logs:
+- "assumption_log": an array of up to 3 calculation steps or variable logs: [{"time": "12:34", "event": "Calculation or slider variable update description"}]
+
 Context:
 {context}
 

@@ -14,6 +14,7 @@ class Chat(Base):
     workspace_type: Mapped[str] = mapped_column(String, default="chat", nullable=False)
     raw_text: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     chunks_json: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    analysis_results_json: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     messages: Mapped[List["Message"]] = relationship(
         back_populates="chat", cascade="all, delete-orphan", passive_deletes=True

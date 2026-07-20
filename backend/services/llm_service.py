@@ -1,8 +1,10 @@
 from langchain_groq import ChatGroq
+from groq import AsyncGroq
 from litellm import token_counter
 from typing import Dict, Any
 from config import settings
 from PromptTemplate import PDF_PROMPT
+
 class GroqLLMService:
     def __init__(self):
         self.llm = ChatGroq(
@@ -11,6 +13,7 @@ class GroqLLMService:
             api_key=settings.groq_api_key
         )
         self.model_name = settings.llm_model
+        self.groq_client = AsyncGroq(api_key=settings.groq_api_key)
 
     async def generate_response(self, context: str, question: str, history: str, chat_id: str) -> Dict[str, Any]:
         prompt = PDF_PROMPT.invoke({

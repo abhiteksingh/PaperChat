@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     groq_api_key: str
     pinecone_api_key: str
     pinecone_index_name: str = "pdf-chatbot"
+    # LOCAL DEV DEFAULT: Defaults to SQLite.
+    # IN PRODUCTION: Set the DATABASE_URL environment variable to your PostgreSQL connection string.
+    # Pydantic Settings will automatically detect and override this value.
+    # To remove SQLite fallback completely later, just hardcode the postgres URL here:
     database_url: str = "sqlite+aiosqlite:///./chat.db"
     llm_model: str = "llama-3.3-70b-versatile"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"

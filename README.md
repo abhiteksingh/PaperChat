@@ -258,3 +258,16 @@ The FastAPI backend exposes the following REST API endpoints:
 - **Stateless/Stateful hybrid Agent workflow:** LangGraph models the chatbot response generation as a controlled, single-node graph, allowing for easy expansion into multi-agent workflows (e.g. adding separate reviewer, web searcher, or document-synthesizer agents).
 - **SQLite History Tracker:** Simple SQL queries save message histories by chat session UUIDs. This avoids session state management complexities and enables persistent session recall.
 - **Glassmorphism UX Design:** The front-end relies on elegant dark UI features (zinc backgrounds, glasslike backdrop-blurs, glowing input borders, and responsive button scale micro-animations).
+
+---
+
+## 📝 Spaced Learning & Multi-Workspace Platform Notes (Temporary)
+
+- **Isolated Workspace Architecture**: All 5 specialized chatbots reside in self-contained directories under `frontend/src/workspaces/` (`general/`, `contract-auditor/`, `spaced-learning/`, `spreadsheet-analytics/`, `interview-simulator/`). Each workspace manages its own dedicated sidebar, chat area, and right utility pane.
+- **Database Partitioning**: SQLite chat logs and uploaded document records are partitioned via `workspace_type` filtering (`GET /chats?workspace_type=X`).
+- **Multi-Format Text Ingestion**: Supports PDF (PyMuPDF with RapidOCR fallback for scanned pages), DOCX, PPTX, XLSX, CSV, TXT, and MD. Office formats are parsed using native, zero-dependency Python `zipfile` and `xml.etree.ElementTree`.
+- **Concept Graph Node Deduplication**: Raw section titles undergo canonical subphrase normalization, Jaccard token overlap deduplication, and LLM-driven topic canonicalization to eliminate duplicate node clusters.
+- **Session Mastery Progress & Daily Streak Counter**: Features an SVG circular progress ring rendering overall document mastery (`HIGH` = 100%, `MEDIUM` = 60%, `LOW` = 20%), an active queue counter, and a `🔥 3-Day Study Streak`.
+- **Bi-Directional Mastery Synchronization**: Self-grading ratings (*Again* `#FF4C4C`, *Good* `#FFC107`, *Easy* `#3ECF8E`) immediately update canvas node dot colors in the 2D/3D Concept Graph.
+- **Node Popover Grade Controls**: Selected concept nodes in `ConceptGraph3D.jsx` display direct grade buttons (`🔴 Again`, `🟡 Good`, `🟢 Easy`) to adjust node mastery directly from the graph view.
+

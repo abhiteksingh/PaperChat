@@ -51,7 +51,7 @@ class PineconeVectorService:
                 namespace=chat_id
             )
             texts = [c["child"] for c in chunks]
-            metadatas = [{"parent_content": c["parent"], "page": c["page"]} for c in chunks]
+            metadatas = [{"parent_content": c["parent"], "page": c["page"], "filename": c.get("filename", "")} for c in chunks]
             vector_store.add_texts(texts, metadatas=metadatas)
         await run_in_threadpool(_add)
 
@@ -67,9 +67,10 @@ class PineconeVectorService:
             for doc, score in raw_results:
                 parent_content = doc.metadata.get("parent_content", doc.page_content)
                 page = doc.metadata.get("page", 1)
+                filename = doc.metadata.get("filename", "")
                 parent_doc = Document(
                     page_content=parent_content,
-                    metadata={"page": page}
+                    metadata={"page": page, "filename": filename}
                 )
                 mapped_results.append((parent_doc, score))
             return mapped_results

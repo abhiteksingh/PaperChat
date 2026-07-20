@@ -1,11 +1,11 @@
 # Docent Architecture Guide — Spaced Learning & Document Digest
 
-This guide explains the exact flow, RAG pipeline, and matching mechanics of the **Spaced Learning & Document Digest**. It is designed for beginners to understand active recall learning integrations.
+This guide explains the flow, RAG pipeline, and quantitative matching mechanics of the **Spaced Learning & Document Digest**. It is designed for beginners to understand active recall learning integrations.
 
 ---
 
 ## 1. Core Purpose (The "Why")
-* **Goal**: Maximize concept retention, textbook review efficiency, and student spaced repetition study routines.
+* **Goal**: Maximize concept retention, textbook review efficiency, and student spaced repetition study routines through evidence-backed retention science.
 * **Target Audience**: Students, developers, and academic researchers preparing for exams or case study reviews. It moves away from passive reading to active recall challenges.
 
 ---
@@ -20,32 +20,46 @@ This guide explains the exact flow, RAG pipeline, and matching mechanics of the 
 ```
 
 ### Step 1: Conceptual Splitter
-* Textbooks and lecture notes rely on conceptual sections.
-* Chunks are split into medium-large blocks (**500 to 800 tokens**) to ensure that complete descriptions, proofs, and definitions are not separated.
+* Textbook blocks are split into medium-large blocks (**500 to 800 tokens**) to ensure that complete descriptions, proofs, and definitions are not separated.
 
 ### Step 2: Summary Abstractions
-* Alongside standard text chunks, the RAG engine extracts paragraph headings and conceptual takeaways to build a summary mapping layer.
-* This summary map is what powers the chapter index listed in the study panel.
+* Alongside standard text chunks, the RAG engine extracts paragraph headings and takeaways to build a summary mapping layer, which powers the chapter index listed in the workbook.
 
 ---
 
 ## 3. Matching & Search Strategy (The "What")
-* **Socratic Dialogue Match**: The RAG search retrieves relevant concept context based on the user's study topics.
-* **Tutor Question Injections**: Instead of just outputting answers, the backend retrieves context, drafts the explanation, and then appends a Socratic follow-up question (e.g. *"Now, how would you apply this vector math to a sparse RAG search?"*) to test user recall.
-* **Self-Grading feedback**: Flashcard responses are graded by the user (Again / Good / Easy), adjusting scheduling deadlines in the database logs.
+
+* **Socratic Dialogue & Tutor Question Injections**: The RAG search retrieves relevant concept context based on the user's study topics, drafts explanations, and appends Socratic follow-up questions to test recall.
+* **Forgetting Curve Prediction & Half-Life**:
+  * Employs the retention decay model: $R = e^{-t / H}$
+  * The half-life $H$ is calculated from flashcard grade histories: doubled for "Good", tripled for "Easy", set to 1 day for "Again".
+  * If a concept's retrievability falls below $70\%$ before the student-defined `exam_date`, it is flagged with a **Forgetting Risk warning** and resurfaced ahead of schedule.
+* **Session-End Retrieval Practice (Closed-Book Quiz)**:
+  * Generates short retrieval questions covering the current session's study themes.
+  * Students type their recall answers closed-book. Expected details are revealed side-by-side for self-grading.
+* **Interleaved Review Queues**:
+  * Instead of presenting flashcards in single-chapter blocks, the queue interleaves concepts across different chapters and topics, which increases long-term contextual learning retention.
+* **Practice Problems & Quizzes**:
+  * RAG generates procedurally heavy practice problems (`PRACTICE_PROBLEM`) distinct from standard flashcards (`FLASHCARD`) for procedural topics (math, sciences).
+* **Elaborative Interrogation Prompts**:
+  * Periodic connecting prompts (e.g. *"Why does this relationship hold true?"* or *"How does this connect to prior concept X?"*) to encourage conceptual integration.
+* **Audited Confidence Heatmaps**:
+  * Audits user-reported confidence levels against actual recall histories to expose overconfidence/underestimation gaps.
 
 ---
 
 ## 4. Frontend & Backend Interactions
 
 ### Frontend Layout (Split Notion Study Panel)
-* **Left Sidebar (Chapters Index)**: Navigation table of contents with checkboxes to mark sections as "Mastered" or "Needs Review".
-* **Left-Center Workspace (Notion Text Area Canvas)**: A Notion-style markdown text co-editor that automatically compiles study summaries as the AI dialogue progresses.
+* **Left Sidebar (Chapters Index)**: Displays chapters with auto-derived badges ("Mastered" if success rate >= 66%, "Needs Review" otherwise) with manual toggle overrides.
+* **Left-Center Workspace (Notion Text Area Canvas)**:
+  * An editor that compiles summary logs.
+  * Displays calendar inputs for `exam_date` and warning messages for forgetting curve risks.
+  * Triggers closed-book session-end recall tests.
 * **Right Pane (Spaced Recall Utilities)**:
-  * **Spaced Repetition Flashcards Queue (Anki-Style)**: An active flashcard deck tracking due dates and intervals.
-  * **Confidence Heatmap**: A 2D grid matrix mapping study topics against user self-confidence levels (Low/Medium/High).
+  * **Spaced Repetition Flashcards Queue (Anki-Style)**: Alternates interleaved flashcards and practice problems.
+  * **Audited Confidence Matrix Grid**: Maps topics and highlights overconfidence gaps.
 
 ### Backend Agent Logic
-* **Model**: Groq LLaMA-3.1-70B.
-* **Temperature**: `0.5` (balanced creativity for educational analogies while maintaining strict accuracy).
-* **System Prompt**: Enforces Socratic dialogue methods, questions assumptions, compiles text takeaways, and appends citations `[p.X]`.
+* **Model**: Groq LLaMA-3.1-70B at temperature `0.5`.
+* **System Prompt**: Enforces Socratic dialogue methods, compiles summary takeaways, and appends citations `[p.X]`.

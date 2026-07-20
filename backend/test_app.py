@@ -40,7 +40,7 @@ class MockVectorService:
     async def create_index(self, chat_id: str, chunks: List[dict]) -> None:
         self.indices[chat_id] = chunks
 
-    async def similarity_search(self, chat_id: str, query: str, k: int = 3) -> List[Tuple[Document, float]]:
+    async def similarity_search(self, chat_id: str, query: str, k: int = 3, filter: dict = None) -> List[Tuple[Document, float]]:
         return [(Document(page_content="Mock PDF content matching the query.", metadata={"page": 1}), 1.0)]
 
     async def delete_index(self, chat_id: str) -> None:

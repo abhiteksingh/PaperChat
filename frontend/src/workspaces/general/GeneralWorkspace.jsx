@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import UploadZone from '../../components/UploadZone';
 import MessageList from '../../components/MessageList';
-import ConceptGraph3D from '../../components/ConceptGraph3D';
 import GeneralSideBar from './GeneralSideBar';
+import EntityExtractorClipboard from './EntityExtractorClipboard';
+import API_BASE from '../../api';
 
 function GeneralWorkspace({ chatId, setChatId, messages, setMessages, chats, setChats, onNavigateHome, workspaceType }) {
   const [question, setQuestion] = useState("");
@@ -12,6 +13,8 @@ function GeneralWorkspace({ chatId, setChatId, messages, setMessages, chats, set
   const [error, setError] = useState(null);
   const [selectedCitation, setSelectedCitation] = useState(null);
   const [contextChip, setContextChip] = useState(null);
+  const [clipboardItems, setClipboardItems] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
 
   const currentChat = chats.find(c => c.chat_id === chatId);
   const isProcessing = currentChat?.status === "processing";
@@ -33,7 +36,7 @@ function GeneralWorkspace({ chatId, setChatId, messages, setMessages, chats, set
         formData.append("files", file);
       });
 
-      const response = await fetch("http://127.0.0.1:8000/upload?workspace_type=chat", {
+      const response = await fetch(`${API_BASE}/upload?workspace_type=chat`, {
         method: "POST",
         body: formData
       });
@@ -93,7 +96,7 @@ function GeneralWorkspace({ chatId, setChatId, messages, setMessages, chats, set
     try {
       setMessages(prev => [...prev, { role: "user", content: questionToSend }]);
 
-      const response = await fetch("http://127.0.0.1:8000/chat", {
+      const response = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -112,12 +115,17 @@ function GeneralWorkspace({ chatId, setChatId, messages, setMessages, chats, set
         token_count: data.token_count,
         citations: data.citations
       }]);
+      setSuggestions(data.suggestions || []);
     } catch (err) {
       console.error(err);
     }
     finally {
       setChatLoading(false);
     }
+  };
+
+  const handleSuggestionClick = (s) => {
+    setQuestion(s);
   };
 
   const handleDragOver = (e) => {
@@ -157,7 +165,7 @@ function GeneralWorkspace({ chatId, setChatId, messages, setMessages, chats, set
           <div className="h-16 border-b border-[#2A2A2A] px-6 flex items-center justify-between bg-[#161616]/40 select-none shrink-0">
             <div className="flex items-center gap-3">
               <span className="font-mono text-xs text-white font-medium">
-                {chats.find(c => c.chat_id === chatId)?.title}.pdf
+                {chats.find(c => c.chat_id === chatId)?.title}
               </span>
               {!isProcessing && !isFailed && (
                 <span className="bg-[#4C8DFF]/10 border border-[#4C8DFF]/20 text-[#4C8DFF] text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold">
@@ -217,6 +225,8 @@ function GeneralWorkspace({ chatId, setChatId, messages, setMessages, chats, set
                     type="text"
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
                     disabled={chatLoading || isProcessing}
                     placeholder="Ask your files anything or drop a graph node..."
                     className="flex-1 bg-transparent text-xs text-white placeholder-[#9A9A9A] outline-none min-w-0"
@@ -230,6 +240,21 @@ function GeneralWorkspace({ chatId, setChatId, messages, setMessages, chats, set
                     Send
                   </button>
                 </form>
+
+                {/* Follow-up suggestions */}
+                {suggestions && suggestions.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1 select-none animate-fade-in">
+                    {suggestions.map((s, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleSuggestionClick(s)}
+                        className="text-[9px] bg-[#161616] hover:bg-[#4C8DFF]/10 text-[#9A9A9A] hover:text-[#4C8DFF] border border-[#2A2A2A] hover:border-[#4C8DFF]/30 px-3 py-1.5 rounded-full transition text-left cursor-pointer"
+                      >
+                        💡 {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -238,16 +263,16 @@ function GeneralWorkspace({ chatId, setChatId, messages, setMessages, chats, set
       </div>
 
       {chatId && (
-        <ConceptGraph3D
+        <EntityExtractorClipboard
           chatId={chatId}
-          chats={chats}
-          messages={messages}
-          workspaceType={workspaceType}
+          activeChat={chats.find(c => c.chat_id === chatId)}
+          clipboardItems={clipboardItems}
+          setClipboardItems={setClipboardItems}
         />
       )}
 
       {selectedCitation && (
-        <div className="absolute right-0 top-0 h-full w-[320px] bg-[#161616] border-l border-[#2A2A2A] shadow-2xl z-30 p-6 flex flex-col gap-4 animate-fade-in text-xs">
+        <div className="absolute right-0 top-0 h-full w-[320px] bg-[#161616] border-l border-[#2A2A2A] shadow-2xl z-30 p-6 flex flex-col gap-4 animate-fade-in text-xs select-none font-mono">
           <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-4">
             <h4 className="font-display text-sm text-white font-medium">Reference Excerpt</h4>
             <button onClick={() => setSelectedCitation(null)} className="text-xs text-[#9A9A9A] hover:text-white transition cursor-pointer">✕ Close</button>
@@ -255,12 +280,26 @@ function GeneralWorkspace({ chatId, setChatId, messages, setMessages, chats, set
           
           <div className="flex justify-between items-center bg-[#0A0A0A] border border-[#2A2A2A] p-3.5 rounded-xl select-none">
             <span className="text-[10px] text-[#9A9A9A] font-mono">Location</span>
-            <span className="font-mono text-[9px] bg-[#4C8DFF]/15 border border-[#4C8DFF]/20 text-[#4C8DFF] px-2.5 py-0.5 rounded font-bold">[p.{selectedCitation.page}]</span>
+            <span className="font-mono text-[9px] bg-[#4C8DFF]/15 border border-[#4C8DFF]/20 text-[#4C8DFF] px-2.5 py-0.5 rounded font-bold">
+              {selectedCitation.filename ? `${selectedCitation.filename.split('/').pop().split('\\').pop()}, ` : ""}p.{selectedCitation.page}
+            </span>
           </div>
 
-          <div className="flex-1 overflow-y-auto text-xs leading-relaxed text-zinc-300 bg-[#0A0A0A] border border-[#2A2A2A] p-4 rounded-xl italic">
+          <div className="flex-1 overflow-y-auto text-xs leading-relaxed text-zinc-300 bg-[#0A0A0A] border border-[#2A2A2A] p-4 rounded-xl italic text-left">
             "{selectedCitation.text}"
           </div>
+
+          <button
+            onClick={() => {
+              if (!clipboardItems.some(item => item.text === selectedCitation.text)) {
+                setClipboardItems(prev => [...prev, selectedCitation]);
+              }
+              setSelectedCitation(null);
+            }}
+            className="w-full py-2.5 bg-[#4C8DFF] hover:bg-[#6FA2FF] text-white rounded-xl font-bold tracking-wider text-xs transition cursor-pointer uppercase shrink-0"
+          >
+            Pin to Clipboard
+          </button>
         </div>
       )}
 

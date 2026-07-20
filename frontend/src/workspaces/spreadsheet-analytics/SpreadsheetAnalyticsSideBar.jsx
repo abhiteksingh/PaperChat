@@ -1,10 +1,31 @@
 import { useState, useEffect } from 'react';
+import API_BASE from '../../api';
 
-function SpreadsheetAnalyticsSideBar({ chats, chatId, setChats, setChatId, setMessages, onNavigateHome, onDrop, learningRate, setLearningRate, dimensions, setDimensions, overlap, setOverlap, vectorDensity, projectedAccuracy, tokenCost }) {
+function InfoTooltip({ text }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <span className="relative group inline-block ml-1 select-none font-sans">
+      <span 
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        className="text-[8px] bg-[#2A2A2A] hover:bg-[#3ECF8E] text-[#8A8A8A] hover:text-black w-3.5 h-3.5 inline-flex items-center justify-center rounded-full cursor-help font-bold transition-colors"
+      >
+        i
+      </span>
+      {visible && (
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-44 bg-[#0D0E10] border border-[#2A2A2A] text-zinc-300 text-[8px] font-sans rounded-md p-2 shadow-xl z-50 leading-normal normal-case pointer-events-none">
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function SpreadsheetAnalyticsSideBar({ chats, chatId, setChats, setChatId, setMessages, onNavigateHome, onDrop, variables = [], onVariableChange, outcomeMetric = 0.0 }) {
   useEffect(() => {
     async function fetchChats() {
       try {
-        const response = await fetch("http://127.0.0.1:8000/chats?workspace_type=spreadsheet-analytics");
+        const response = await fetch(`${API_BASE}/chats?workspace_type=spreadsheet-analytics`);
         if (response.ok) {
           const data = await response.json();
           setChats(data.chats);
@@ -14,12 +35,12 @@ function SpreadsheetAnalyticsSideBar({ chats, chatId, setChats, setChatId, setMe
       }
     }
     fetchChats();
-  }, [chatId, setChats]);
+  }, []);
 
   const handleChatSelect = async (selectedId) => {
     try {
       setChatId(selectedId);
-      const response = await fetch("http://127.0.0.1:8000/messages", {
+      const response = await fetch(`${API_BASE}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chat_id: selectedId })
@@ -80,66 +101,42 @@ function SpreadsheetAnalyticsSideBar({ chats, chatId, setChats, setChatId, setMe
           )}
         </div>
 
-        {/* Sliders rows (Left Pane UI controls) */}
-        {chatId && (
-          <div className="space-y-4 pt-4 border-t border-[#2A2A2A]">
-            <h3 className="text-[10px] font-bold text-[#3ECF8E] tracking-wider uppercase">LAB VARIABLES</h3>
+        {/* Dynamic Sliders rows (Left Pane UI controls) */}
+        {chatId && variables.length > 0 && (
+          <div className="space-y-4 pt-4 border-t border-[#2A2A2A] overflow-y-auto max-h-[350px] pr-1" style={{ scrollbarWidth: 'thin' }}>
+            <h3 className="text-[10px] font-bold text-[#3ECF8E] tracking-wider uppercase flex items-center gap-1">
+              <span>BUSINESS VARIABLES</span>
+              <InfoTooltip text="Numerical variables parsed from your uploaded spreadsheet. Adjust the sliders to simulate changes in your business model." />
+            </h3>
 
-            {/* learningRate slider */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between font-mono">
-                <span className="text-[#8A8A8A]">Learning rate</span>
-                <span className="text-white font-bold">{learningRate}</span>
+            {variables.map((v, idx) => (
+              <div key={idx} className="space-y-1.5 text-left font-sans">
+                <div className="flex justify-between font-mono text-[10px]">
+                  <span className="text-[#8A8A8A] truncate max-w-[150px]">{v.name}</span>
+                  <span className="text-white font-bold">{(v.value !== undefined ? v.value : v.mean).toFixed(2)}</span>
+                </div>
+                <input 
+                  type="range" 
+                  min={v.min} 
+                  max={v.max} 
+                  step={(v.max - v.min) / 100 || 0.01} 
+                  value={v.value !== undefined ? v.value : v.mean} 
+                  onChange={(e) => onVariableChange(v.name, parseFloat(e.target.value))}
+                  className="w-full accent-[#3ECF8E] cursor-pointer"
+                />
               </div>
-              <input 
-                type="range" min="0.01" max="1.0" step="0.01" 
-                value={learningRate} 
-                onChange={(e) => setLearningRate(parseFloat(e.target.value))}
-                className="w-full accent-[#3ECF8E] cursor-pointer"
-              />
-            </div>
-
-            {/* dimensions slider */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between font-mono">
-                <span className="text-[#8A8A8A]">Vector dimensions</span>
-                <span className="text-white font-bold">{dimensions}d</span>
-              </div>
-              <input 
-                type="range" min="64" max="1024" step="64" 
-                value={dimensions} 
-                onChange={(e) => setDimensions(parseInt(e.target.value))}
-                className="w-full accent-[#3ECF8E] cursor-pointer"
-              />
-            </div>
-
-            {/* overlap slider */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between font-mono">
-                <span className="text-[#8A8A8A]">Chunk overlap</span>
-                <span className="text-white font-bold">{overlap} tokens</span>
-              </div>
-              <input 
-                type="range" min="10" max="256" step="10" 
-                value={overlap} 
-                onChange={(e) => setOverlap(parseInt(e.target.value))}
-                className="w-full accent-[#3ECF8E] cursor-pointer"
-              />
-            </div>
+            ))}
 
             {/* Sim outcomes */}
             <div className="border-t border-[#2A2A2A] pt-4 space-y-2 text-[10px]">
-              <div className="flex justify-between">
-                <span className="text-[#8A8A8A]">Density:</span>
-                <span className="text-white font-bold">{vectorDensity}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#8A8A8A]">Accuracy:</span>
-                <span className="text-white font-bold">{projectedAccuracy}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#8A8A8A]">Cost:</span>
-                <span className="text-white font-bold">${tokenCost}</span>
+              <div className="flex justify-between font-sans items-center">
+                <span className="text-[#8A8A8A] font-bold uppercase flex items-center gap-1">
+                  <span>OUTCOME INDEX</span>
+                  <InfoTooltip text="The top-line score computed using the sandbox mathematical formulas." />
+                </span>
+                <span className="text-[#3ECF8E] font-bold text-[12px] font-mono">
+                  {outcomeMetric.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                </span>
               </div>
             </div>
 

@@ -15,6 +15,7 @@ litellm
 sentence-transformers
 python-dotenv
 sqlalchemy[asyncio]
+asyncpg
 aiosqlite
 pinecone-client
 langchain-pinecone

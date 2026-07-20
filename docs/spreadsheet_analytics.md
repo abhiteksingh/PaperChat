@@ -1,11 +1,11 @@
 # Docent Architecture Guide — Spreadsheet Analytics & Quantitative Sandbox
 
-This guide explains the exact flow, RAG pipeline, and matching mechanics of the **Spreadsheet Analytics & Quantitative Sandbox**. It is designed for beginners to understand tabular data simulation modeling.
+This guide explains the flow, RAG pipeline, and quantitative matching mechanics of the **Spreadsheet Analytics & Quantitative Sandbox**. It is designed for beginners to understand tabular data simulation modeling.
 
 ---
 
 ## 1. Core Purpose (The "Why")
-* **Goal**: Enable numerical data comparisons, cost modeling, and mathematical sandbox calculations over spreadsheet files.
+* **Goal**: Enable numerical data comparisons, cost modeling, sensitivity testing, forecasting, and mathematical sandbox calculations over spreadsheet files.
 * **Target Audience**: Business quants, operational analysts, accountants, and engineers. It turns static data sheets into dynamic models where changing variables recalculates projections.
 
 ---
@@ -20,35 +20,46 @@ This guide explains the exact flow, RAG pipeline, and matching mechanics of the 
 ```
 
 ### Step 1: Row-by-Row Tabular Serialization
-* Standard character splitters cut text blindly, which destroys tabular rows.
-* **The Solution**: The parser reads spreadsheets (`.csv`, `.xlsx`) line-by-line, creating text representations for individual rows:
-  `"Row 5: Date = 2026-05-10 | Client = Alpha | Amount = $24,500"`
-* This preserves the relationship between columns on each row.
+* The parser reads spreadsheets (`.csv`, `.xlsx`) line-by-line, creating text representations for individual rows (preserving the column relationships on each row).
 
 ### Step 2: Indexing Groups
 * Row entries are grouped (30 rows per page chunk) to fit within context limits and keep page-indexing and citations cohesive.
 
+### Step 3: Outlier/Anomaly Detection
+* During ingestion, a statistical pass scans numerical columns to identify rows with values exceeding $2.5$ standard deviations from the mean.
+* Anomalies are flagged with citations to the exact row `[p.X]` so analysts can spot typos or entry errors.
+
 ---
 
 ## 3. Matching & Search Strategy (The "What")
-* **Numeric Filters**: Searches match column keywords and filter results based on numerical criteria.
+
+* **Dynamic Sliders Generation**: Instead of retrieval hyperparameters, variables controls are dynamically mapped to numeric columns detected in the dataset (e.g. headcount, growth rate, conversions).
 * **Formula Execution**: Math questions are processed by the Sandbox agent, which runs equations on columns data and displays exact calculations to prevent LLM arithmetic errors.
+* **Sensitivity Analysis (Tornado Swings)**:
+  * Holding other factors constant, the sandbox swings each parameter independently between its min and max bounds to measure the output swing.
+  * Displays variables ranked by impact in a Tornado chart.
+* **Goal Seek Reverse Solves**:
+  * Solve backward to calculate what value a specific input variable requires to hit a targeted outcome (e.g., ARR targets).
+* **Monte Carlo Uncertainty Modeling**:
+  * Defines variable ranges as distributions rather than static points, running random sample simulations to output a probability outcome histogram.
+* **Trend Extrapolation & Forecasting**:
+  * Fits a linear regression line ($\text{slope} \cdot x + \text{intercept}$) on historical time-series cells to project trends.
 
 ---
 
 ## 4. Frontend & Backend Interactions
 
 ### Frontend Layout (Analytics Lab)
-* **Left Sidebar (Variables Control)**: Sliders to adjust coefficients (Learning Rate, Dimensions, Chunk Overlaps) that dynamically recalculate Vector Density, Accuracy, and computed token costs.
+* **Left Sidebar (Variables Control)**: Sliders dynamically generated from parsed columns.
 * **Middle Canvas Panel**:
-  * **Interactive Waveform Canvas**: Draws dynamic math curves in real-time as sliders are moved.
+  * **Interactive Waveform Canvas**: Plots manual math waves, trend regressions, or Monte Carlo histogram bins.
   * Standard RAG chat for calculation queries.
 * **Right Pane (Scenario Manager)**:
-  * **Scenario Snapshots**: Allows users to "Pin" current configurations and compare 2-3 snapshots side-by-side.
-  * **Assumption Log**: A timestamped log history recording slider adjustments.
-  * **Formula Transparency**: Code math formulas (V_Density, Cost) displayed for auditing.
+  * **Scenario Snapshots**: Pin and compare scenarios, highlighting which variable change caused the largest shift.
+  * **Sensitivity Tornado Chart**: Displays ranked bars representing variance impact.
+  * **Row Anomaly list**: Flags outliers.
+  * **Assumption Log**: Logs value updates.
 
 ### Backend Agent Logic
-* **Model**: Groq LLaMA-3.1-70B.
-* **Temperature**: `0.1` (extremely low temperature to ensure strict adherence to quantitative data limits and prevent calculation errors).
-* **System Prompt**: Focuses on variable breakdowns, formula evaluations, explaining numeric relationships, and citing source rows `[p.X]`.
+* **Model**: Groq LLaMA-3.1-70B at temperature `0.1` (strict adherence to quantitative data limits).
+* **System Prompt**: Focuses on variable breakdowns, formula evaluations, and citing source rows `[p.X]`.

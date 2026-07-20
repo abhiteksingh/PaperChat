@@ -154,6 +154,7 @@ async def extract_file_text(files) -> list[dict]:
         filename = file.filename.lower()
         logger.info(f"Ingesting file: {filename}, size: {len(file_bytes)} bytes")
         
+        pages_data = []
         # Route depending on formats
         if filename.endswith(".pdf"):
             try:
@@ -166,7 +167,6 @@ async def extract_file_text(files) -> list[dict]:
                         detail="PDF exceeds the maximum limit of 100 pages."
                     )
                 pages_data = await run_in_threadpool(process_doc_pages, doc)
-                all_pages.extend(pages_data)
                 doc.close()
             except HTTPException as he:
                 raise he
@@ -177,27 +177,68 @@ async def extract_file_text(files) -> list[dict]:
                     detail="Failed to open PDF document."
                 )
         elif filename.endswith(".docx") or filename.endswith(".doc"):
-            all_pages.extend(extract_docx_pages(file_bytes))
+            pages_data = extract_docx_pages(file_bytes)
         elif filename.endswith(".pptx") or filename.endswith(".ppt"):
-            all_pages.extend(extract_pptx_pages(file_bytes))
+            pages_data = extract_pptx_pages(file_bytes)
         elif filename.endswith(".xlsx") or filename.endswith(".xls"):
-            all_pages.extend(extract_xlsx_pages(file_bytes))
+            pages_data = extract_xlsx_pages(file_bytes)
         elif filename.endswith(".csv"):
-            all_pages.extend(extract_txt_pages(file_bytes))
+            pages_data = extract_txt_pages(file_bytes)
         else:
             # Fallback for plain text, markdown, json, etc.
-            all_pages.extend(extract_txt_pages(file_bytes))
+            pages_data = extract_txt_pages(file_bytes)
+            
+        for p in pages_data:
+            p["filename"] = file.filename
+        all_pages.extend(pages_data)
             
     return all_pages
 
 def extract_topic_header(text: str) -> str:
+    import re
+    # Match date patterns (e.g. 1/23/2026 26) inside strings to strip them out
+    date_slide_pattern = re.compile(r'\b\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4}(\s+\d+)?\b')
+    
     lines = [line.strip() for line in text.split('\n') if line.strip()]
     if not lines:
         return "Concept Node"
-    first_line = lines[0]
-    if len(first_line) > 60:
-        return first_line[:57] + "..."
-    return first_line
+        
+    # Match strings that consist entirely of metadata like page numbers, dates, times or separator lines
+    metadata_pattern = re.compile(
+        r'^(\d{1,4}[/\-.]\d{1,4}[/\-.]\d{2,4}(\s+\d+)?|'
+        r'\d{1,2}:\d{2}(\s*[aApP][mM])?|'
+        r'page\s*\d+|'
+        r'\d+|'
+        r'slide\s*\d+|'
+        r'[.\-\s_#*]+)$',
+        re.IGNORECASE
+    )
+    
+    topic_line = None
+    for line in lines:
+        cleaned_line = date_slide_pattern.sub('', line).strip()
+        if metadata_pattern.match(line) or not cleaned_line:
+            continue
+        if len(cleaned_line) > 2:
+            topic_line = cleaned_line
+            break
+            
+    if not topic_line:
+        for line in lines:
+            cleaned = date_slide_pattern.sub('', line).strip()
+            if cleaned:
+                topic_line = cleaned
+                break
+                
+    if not topic_line:
+        return "Concept Node"
+        
+    # Collapse consecutive spaces
+    topic_line = re.sub(r'\s+', ' ', topic_line).strip()
+    
+    if len(topic_line) > 60:
+        return topic_line[:57] + "..."
+    return topic_line
 
 def split_parent_child_by_page(pages: list[dict]) -> list[dict]:
     parent_splitter = RecursiveCharacterTextSplitter(
@@ -219,6 +260,218 @@ def split_parent_child_by_page(pages: list[dict]) -> list[dict]:
                 chunk_mappings.append({
                     "child": child_chunk,
                     "parent": parent_chunk,
-                    "page": page_num
+                    "page": page_num,
+                    "filename": page_data.get("filename", "")
                 })
     return chunk_mappings
+
+def detect_missing_clauses_hybrid(chunks: list[dict]) -> list[str]:
+    """
+    Scans the extracted parent chunks using a hybrid keyword/phrase matching strategy
+    to identify missing protective clause categories in vendor agreements.
+    """
+    categories = {
+        "Limitation of Liability": ["limitation of liability", "cap liability", "liability cap", "maximum liability", "disclaim consequential", "limit of liability"],
+        "Force Majeure": ["force majeure", "act of god", "excusable delay", "unforeseen event", "suspension of performance"],
+        "Data Protection (DPA)": ["data protection", "dpa", "personal data", "gdpr", "data privacy", "information security", "processing of data"],
+        "Assignment Restriction": ["assignment", "assign", "transfer restriction", "delegate", "change of control", "consent to transfer"],
+        "Indemnity Cap": ["indemnity cap", "limit indemnity", "indemnification limit", "cap on indemnity", "indemnify cap"],
+        "Governing Law": ["governing law", "applicable law", "choice of law", "governed by", "jurisdiction of"],
+        "Dispute Resolution": ["dispute resolution", "arbitration", "mediation", "litigation", "settling disputes", "resolve dispute"]
+    }
+    
+    missing = []
+    parent_texts_lower = [c["parent"].lower() for c in chunks if "parent" in c]
+    
+    for category, keywords in categories.items():
+        found = False
+        for text in parent_texts_lower:
+            if any(kw in text for kw in keywords):
+                found = True
+                break
+        if not found:
+            missing.append(category)
+            
+    return missing
+
+def check_ats_structure(raw_text: str) -> dict:
+    """
+    Evaluates raw resume text for structural ATS-friendliness.
+    """
+    import re
+    text_lower = raw_text.lower()
+    
+    # 1. Missing standard sections
+    sections = {
+        "Experience/Work History": ["experience", "employment", "work history", "history", "professional experience"],
+        "Education": ["education", "academic", "university", "college", "school"],
+        "Skills": ["skills", "technologies", "expertise", "specialties", "competencies"]
+    }
+    missing_sections = []
+    for section_name, keywords in sections.items():
+        if not any(kw in text_lower for kw in keywords):
+            missing_sections.append(section_name)
+            
+    # 2. Text layout / column wrapping issues (short lines check)
+    lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
+    short_lines = [line for line in lines if len(line) < 15]
+    non_linear_warning = len(short_lines) / len(lines) > 0.35 if lines else False
+    
+    # 3. Encoding / Unicode errors
+    replacement_char_count = raw_text.count("")
+    unusual_char_pattern = re.compile(r"[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]")
+    unusual_chars = unusual_char_pattern.findall(raw_text)
+    encoding_warning = (replacement_char_count > 2) or (len(unusual_chars) > len(raw_text) * 0.01)
+    
+    # 4. Contact details validation
+    email_match = re.search(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b", raw_text)
+    phone_match = re.search(r"\b(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b", raw_text)
+    missing_contact = not (email_match or phone_match)
+    
+    return {
+        "missing_sections": missing_sections,
+        "non_linear_warning": non_linear_warning,
+        "encoding_warning": encoding_warning,
+        "missing_contact": missing_contact,
+        "score": max(0, 100 - (len(missing_sections) * 20) - (20 if non_linear_warning else 0) - (15 if encoding_warning else 0) - (25 if missing_contact else 0))
+    }
+
+def classify_seniority_tier(raw_text: str) -> str:
+    """
+    Classifies candidate experience level based on resume keyword metrics.
+    """
+    import re
+    text_lower = raw_text.lower()
+    
+    # Check for direct staff/principal titles
+    staff_keywords = ["staff", "principal", "director", "architect"]
+    senior_keywords = ["senior", "lead", "manager", "head"]
+    junior_keywords = ["junior", "intern", "student", "graduate", "new grad", "freshman"]
+    
+    # Match years of experience numbers
+    yoe_matches = re.findall(r"(\d+)\+?\s*years?\b", text_lower)
+    max_yoe = 0
+    if yoe_matches:
+        try:
+            max_yoe = max(int(m) for m in yoe_matches)
+        except ValueError:
+            pass
+            
+    if any(kw in text_lower for kw in staff_keywords) or max_yoe >= 8:
+        return "STAFF"
+    if any(kw in text_lower for kw in senior_keywords) or max_yoe >= 5:
+        return "SENIOR"
+    if any(kw in text_lower for kw in junior_keywords) or (max_yoe > 0 and max_yoe < 2):
+        return "NEW_GRAD"
+        
+    return "MID"
+
+def analyze_spreadsheet_data(full_text: str) -> dict:
+    import re
+    lines = [line.strip() for line in full_text.split('\n') if line.strip()]
+    if not lines:
+        return {"variables": [], "outliers": [], "forecast": {}}
+        
+    # Detect delimiter
+    first_line = lines[0]
+    delimiter = '|' if '|' in first_line else ','
+    
+    # Split rows
+    raw_rows = []
+    for line in lines:
+        row = [val.strip() for val in line.split(delimiter)]
+        if row:
+            raw_rows.append(row)
+            
+    if not raw_rows:
+        return {"variables": [], "outliers": [], "forecast": {}}
+        
+    headers = raw_rows[0]
+    num_cols = len(headers)
+    
+    # Identify numeric columns
+    numeric_columns = {}
+    for col_idx in range(num_cols):
+        col_name = headers[col_idx]
+        col_vals = []
+        for row in raw_rows[1:]:
+            if col_idx < len(row):
+                val_str = row[col_idx].replace('$', '').replace('%', '').replace(',', '').strip()
+                try:
+                    val = float(val_str)
+                    col_vals.append(val)
+                except ValueError:
+                    pass
+        # If >= 70% of rows are numeric, classify as numeric column
+        if len(col_vals) >= (len(raw_rows) - 1) * 0.7 and len(col_vals) > 0:
+            numeric_columns[col_name] = col_vals
+            
+    # Calculate statistics and find outliers
+    outliers = []
+    variables = []
+    
+    for col_name, vals in numeric_columns.items():
+        if len(vals) < 2:
+            continue
+        arr = np.array(vals)
+        mean = float(np.mean(arr))
+        std = float(np.std(arr))
+        min_val = float(np.min(arr))
+        max_val = float(np.max(arr))
+        
+        variables.append({
+            "name": col_name,
+            "min": min_val,
+            "max": max_val,
+            "value": mean,
+            "mean": mean
+        })
+        
+        # Outlier check: 3 standard deviations
+        if std > 0:
+            for row_idx, row in enumerate(raw_rows[1:]):
+                if col_name in headers:
+                    c_idx = headers.index(col_name)
+                    if c_idx < len(row):
+                        try:
+                            val_str = row[c_idx].replace('$', '').replace('%', '').replace(',', '').strip()
+                            val = float(val_str)
+                            if abs(val - mean) > 2.5 * std:
+                                # Estimate page (30 rows per page)
+                                page_num = (row_idx // 30) + 1
+                                outliers.append({
+                                    "row": row_idx + 1,
+                                    "page": page_num,
+                                    "column": col_name,
+                                    "value": val,
+                                    "mean": mean,
+                                    "std": std,
+                                    "description": f"Value {val} in row {row_idx+1} is an outlier for {col_name} (mean: {mean:.2f}, std: {std:.2f})"
+                                })
+                        except ValueError:
+                            pass
+                            
+    # Trend forecasting: first numeric column as Y, row index as X
+    forecast = {}
+    if variables:
+        target_var = variables[0]["name"]
+        y_vals = numeric_columns[target_var]
+        x_vals = list(range(len(y_vals)))
+        if len(y_vals) > 3:
+            slope, intercept = np.polyfit(x_vals, y_vals, 1)
+            # Forecast next 10 intervals
+            future_x = list(range(len(y_vals), len(y_vals) + 10))
+            future_y = [float(slope * x + intercept) for x in future_x]
+            forecast = {
+                "variable": target_var,
+                "slope": float(slope),
+                "intercept": float(intercept),
+                "future_points": [{"x": x, "y": y} for x, y in zip(future_x, future_y)],
+                "historical_points": [{"x": x, "y": y} for x, y in zip(x_vals, y_vals)]
+            }
+            
+    return {
+        "variables": variables,
+        "outliers": outliers,
+        "forecast": forecast
+    }

@@ -40,6 +40,9 @@ async def init_db() -> None:
                 if "workspace_type" not in columns:
                     logger.info("Database migration: Adding 'workspace_type' column to 'chats' table...")
                     connection.execute(text("ALTER TABLE chats ADD COLUMN workspace_type VARCHAR DEFAULT 'chat'"))
+                if "analysis_results_json" not in columns:
+                    logger.info("Database migration: Adding 'analysis_results_json' column to 'chats' table...")
+                    connection.execute(text("ALTER TABLE chats ADD COLUMN analysis_results_json VARCHAR"))
                 
                 msg_columns = [col["name"] for col in inspector.get_columns("messages")]
                 if "citations_json" not in msg_columns:
